@@ -1,50 +1,72 @@
 # MySQL Read-Only MCP Server
 
-A Model Context Protocol (MCP) server that provides secure read-only access to MySQL databases. Connect multiple databases and explore schemas, preview data, and run custom queries safely.
+[![npm version](https://badge.fury.io/js/mysql-readonly-mcp.svg)](https://www.npmjs.com/package/mysql-readonly-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Features
+A Model Context Protocol (MCP) server that provides secure read-only access to MySQL databases. Perfect for AI assistants like Kiro, Claude, and other MCP-compatible tools to explore database schemas, preview data, and run analytical queries safely.
 
-- **Secure Read-Only Access**: Only SELECT, SHOW, DESCRIBE, and EXPLAIN queries allowed
-- **Multi-Database Support**: Connect to multiple MySQL databases from a single server
-- **6 Powerful Tools**:
-  - `list_tables` - List all tables in a database
-  - `describe_table` - Get detailed table schema
-  - `preview_data` - Preview table data with filtering
-  - `run_query` - Execute custom SELECT queries
-  - `show_relations` - View foreign key relationships
-  - `db_stats` - Get database statistics
+## Why Use This?
 
-## Installation
+- **Safe Database Exploration**: Only read operations allowed - no risk of accidental data modification
+- **AI-Powered Analysis**: Let your AI assistant query and analyze your database directly
+- **Zero Configuration**: Works out of the box with npx - no installation required
+- **Multiple Databases**: Run separate instances for different databases (production, staging, analytics)
 
-### 1. Install Dependencies
+## Quick Start
 
-```bash
-cd mysql-readonly-mcp
-npm install
+### Using npx (Recommended)
+
+No installation needed! Just configure your MCP client:
+
+```json
+{
+  "mcpServers": {
+    "my-database": {
+      "command": "npx",
+      "args": ["-y", "mysql-readonly-mcp"],
+      "env": {
+        "MYSQL_HOST": "localhost",
+        "MYSQL_PORT": "3306",
+        "MYSQL_USER": "your-user",
+        "MYSQL_PASSWORD": "your-password",
+        "MYSQL_DATABASE": "your-database"
+      }
+    }
+  }
+}
 ```
 
-### 2. Build
+### Global Installation
 
 ```bash
-npm run build
+npm install -g mysql-readonly-mcp
+mysql-readonly-mcp
 ```
 
-### 3. Configure
+## Configuration
 
-Environment variables are passed via MCP configuration (see below).
+### Environment Variables
 
-## MCP Configuration
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MYSQL_HOST` | Database host | `localhost` |
+| `MYSQL_PORT` | Database port | `3306` |
+| `MYSQL_USER` | Database username | - |
+| `MYSQL_PASSWORD` | Database password | - |
+| `MYSQL_DATABASE` | Database name | - |
 
-Each database requires its own MCP server entry. Add to `~/.kiro/settings/mcp.json`:
+### Kiro IDE Setup
+
+Add to `~/.kiro/settings/mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "mysql-production": {
-      "command": "node",
-      "args": ["/path/to/mysql-readonly-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "mysql-readonly-mcp"],
       "env": {
-        "MYSQL_HOST": "production-host.example.com",
+        "MYSQL_HOST": "production.example.com",
         "MYSQL_PORT": "3306",
         "MYSQL_USER": "readonly_user",
         "MYSQL_PASSWORD": "your-password",
@@ -59,169 +81,362 @@ Each database requires its own MCP server entry. Add to `~/.kiro/settings/mcp.js
         "show_relations",
         "db_stats"
       ]
-    },
-    "mysql-staging": {
-      "command": "node",
-      "args": ["/path/to/mysql-readonly-mcp/dist/index.js"],
-      "env": {
-        "MYSQL_HOST": "staging-host.example.com",
-        "MYSQL_PORT": "3306",
-        "MYSQL_USER": "readonly_user",
-        "MYSQL_PASSWORD": "your-password",
-        "MYSQL_DATABASE": "staging_db"
-      },
-      "disabled": false,
-      "autoApprove": []
     }
   }
 }
 ```
 
-### Environment Variables
+### Multiple Databases
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MYSQL_HOST` | Database host | `localhost` |
-| `MYSQL_PORT` | Database port | `3306` |
-| `MYSQL_USER` | Database user | - |
-| `MYSQL_PASSWORD` | Database password | - |
-| `MYSQL_DATABASE` | Database name | - |
+You can connect to multiple databases by creating separate entries:
 
-> **Tip**: Create multiple entries with different names (e.g., `mysql-production`, `mysql-staging`, `mysql-analytics`) to connect to multiple databases.
+```json
+{
+  "mcpServers": {
+    "mysql-production": {
+      "command": "npx",
+      "args": ["-y", "mysql-readonly-mcp"],
+      "env": {
+        "MYSQL_HOST": "prod-db.example.com",
+        "MYSQL_DATABASE": "production"
+      }
+    },
+    "mysql-staging": {
+      "command": "npx",
+      "args": ["-y", "mysql-readonly-mcp"],
+      "env": {
+        "MYSQL_HOST": "staging-db.example.com",
+        "MYSQL_DATABASE": "staging"
+      }
+    },
+    "mysql-analytics": {
+      "command": "npx",
+      "args": ["-y", "mysql-readonly-mcp"],
+      "env": {
+        "MYSQL_HOST": "analytics-db.example.com",
+        "MYSQL_DATABASE": "analytics"
+      }
+    }
+  }
+}
+```
 
-## Usage
+## Available Tools
 
 ### list_tables
 
-Lists all tables in the database with type, row count, and storage engine.
+Lists all tables in the database with metadata.
 
+**Parameters:**
+- None required
+
+**Returns:**
+- Table name
+- Table type (BASE TABLE / VIEW)
+- Estimated row count
+- Storage engine
+
+**Example:**
 ```
-list_tables
+> List all tables in the database
+
+Tables in database:
+- users (BASE TABLE, ~15,000 rows, InnoDB)
+- orders (BASE TABLE, ~250,000 rows, InnoDB)
+- products (BASE TABLE, ~5,000 rows, InnoDB)
+- user_sessions (VIEW, ~0 rows)
 ```
+
+---
 
 ### describe_table
 
-Returns detailed schema information including columns, primary key, foreign keys, and indexes.
+Returns detailed schema information for a table.
 
+**Parameters:**
+- `table` (required): Table name
+
+**Returns:**
+- Column details (name, type, nullable, default, extra)
+- Primary key columns
+- Foreign key relationships
+- Index information
+
+**Example:**
 ```
-describe_table table=users
+> Describe the users table
+
+Table: users
+
+Columns:
+- id (int, NOT NULL, auto_increment) - PRIMARY KEY
+- email (varchar(255), NOT NULL)
+- name (varchar(100), NULL)
+- created_at (datetime, NOT NULL, DEFAULT CURRENT_TIMESTAMP)
+- status (enum('active','inactive'), NOT NULL, DEFAULT 'active')
+
+Foreign Keys:
+- fk_users_company: company_id -> companies.id
+
+Indexes:
+- PRIMARY (id) - unique
+- idx_email (email) - unique
+- idx_status (status)
 ```
+
+---
 
 ### preview_data
 
-Previews table data with optional column selection and filtering.
+Previews table data with optional filtering.
 
-```
-preview_data table=users
-preview_data table=users columns=["id","name","email"] limit=20
-preview_data table=users where="status = 'active'"
-```
-
-**Parameters**:
+**Parameters:**
 - `table` (required): Table name
-- `columns`: Array of columns to return
-- `limit`: Max rows (default: 10, max: 100)
-- `where`: Filter condition (without WHERE keyword)
+- `columns` (optional): Array of columns to return
+- `limit` (optional): Max rows (default: 10, max: 100)
+- `where` (optional): Filter condition (without WHERE keyword)
+
+**Returns:**
+- Selected columns and rows
+- Long text fields are automatically truncated (>200 chars)
+
+**Examples:**
+```
+> Show me the first 5 users
+
+> Preview orders table with only id, total, status columns
+
+> Show products where price > 100 limit 20
+```
+
+---
 
 ### run_query
 
-Executes custom SELECT queries with validation and limits.
+Executes custom SELECT queries with validation.
 
-```
-run_query query="SELECT * FROM users WHERE created_at > '2024-01-01'"
-run_query query="SELECT u.name, COUNT(o.id) FROM users u JOIN orders o ON u.id = o.user_id GROUP BY u.id" limit=100
-```
-
-**Parameters**:
+**Parameters:**
 - `query` (required): SQL query (SELECT, SHOW, DESCRIBE, EXPLAIN only)
-- `limit`: Max rows (default: 1000, max: 5000)
+- `limit` (optional): Max rows (default: 1000, max: 5000)
 
-**Security**:
-- INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE etc. are rejected
-- 30 second timeout enforced
+**Returns:**
+- Query results
+- Execution time
+- Truncation warning if results exceeded limit
+
+**Allowed Statements:**
+- `SELECT`
+- `SHOW`
+- `DESCRIBE`
+- `EXPLAIN`
+
+**Blocked Statements:**
+- INSERT, UPDATE, DELETE
+- DROP, ALTER, TRUNCATE
+- CREATE, REPLACE
+- GRANT, REVOKE
+- LOCK, UNLOCK
+
+**Examples:**
+```
+> SELECT COUNT(*) FROM orders WHERE status = 'completed'
+
+> SELECT u.name, COUNT(o.id) as order_count 
+  FROM users u 
+  LEFT JOIN orders o ON u.id = o.user_id 
+  GROUP BY u.id 
+  ORDER BY order_count DESC 
+  LIMIT 10
+
+> EXPLAIN SELECT * FROM users WHERE email = 'test@example.com'
+```
+
+---
 
 ### show_relations
 
 Shows all foreign key relationships for a table.
 
-```
-show_relations table=users
-```
+**Parameters:**
+- `table` (required): Table name
 
-**Output**:
+**Returns:**
 - Tables that reference this table (referencedBy)
 - Tables this table references (references)
 - Relationship type (one-to-one / one-to-many)
 
+**Example:**
+```
+> Show relationships for the orders table
+
+Table: orders
+
+Referenced By (other tables pointing to this):
+- order_items.order_id -> orders.id (one-to-many)
+- payments.order_id -> orders.id (one-to-many)
+- shipments.order_id -> orders.id (one-to-one)
+
+References (this table points to):
+- orders.user_id -> users.id (many-to-one)
+- orders.product_id -> products.id (many-to-one)
+```
+
+---
+
 ### db_stats
 
-Returns database statistics.
+Returns database statistics and overview.
 
-```
-db_stats
-```
+**Parameters:**
+- None required
 
-**Output**:
+**Returns:**
 - Total table count
-- Total row count (estimated)
+- Total estimated row count
 - Database size
-- Top 10 largest tables by rows
-- Top 10 largest tables by size
+- Top 10 largest tables by row count
+- Top 10 largest tables by data size
+
+**Example:**
+```
+> Show database statistics
+
+Database Statistics:
+- Total Tables: 45
+- Total Rows: ~2,500,000
+- Database Size: 1.2 GB
+
+Largest Tables (by rows):
+1. logs - 1,200,000 rows
+2. events - 500,000 rows
+3. orders - 250,000 rows
+...
+
+Largest Tables (by size):
+1. attachments - 450 MB
+2. logs - 320 MB
+3. products - 180 MB
+...
+```
+
+## Security Features
+
+### Read-Only Enforcement
+
+All queries are validated before execution. The server will reject any query containing:
+- Data modification keywords (INSERT, UPDATE, DELETE)
+- Schema modification keywords (DROP, ALTER, CREATE, TRUNCATE)
+- Permission keywords (GRANT, REVOKE)
+- Lock keywords (LOCK, UNLOCK)
+
+### Query Limits
+
+- **Preview data**: Max 100 rows per request
+- **Custom queries**: Max 5000 rows per request
+- **Timeout**: 30 seconds per query
+
+### Credential Protection
+
+- Database passwords are never exposed in error messages
+- Connection errors show host/database info but mask credentials
+- Query logs are sanitized
+
+## Use Cases
+
+### Database Documentation
+```
+> List all tables and describe each one to document the schema
+```
+
+### Data Analysis
+```
+> How many orders were placed last month?
+> What's the average order value by customer segment?
+```
+
+### Debugging
+```
+> Show me the last 10 error logs
+> Find users who signed up but never made a purchase
+```
+
+### Schema Exploration
+```
+> What tables reference the users table?
+> Show me all indexes on the orders table
+```
 
 ## Development
 
-### Development Mode
+### Building from Source
 
 ```bash
-npm run dev
+git clone https://github.com/beydemirfurkan/mysql-readonly-mcp.git
+cd mysql-readonly-mcp
+npm install
+npm run build
 ```
 
-### Run Tests
+### Running Tests
 
 ```bash
 npm test
 ```
 
-### Test Coverage
+### Running Locally
 
 ```bash
-npm run test:coverage
+# Set environment variables
+export MYSQL_HOST=localhost
+export MYSQL_USER=root
+export MYSQL_PASSWORD=password
+export MYSQL_DATABASE=mydb
+
+# Run the server
+npm start
 ```
 
-## Security
+## Troubleshooting
 
-1. **Read-Only**: Only read operations are supported
-2. **Query Validation**: All queries are validated before execution
-3. **Credential Protection**: Passwords are never exposed in error messages
-4. **Row Limits**: Large result sets are automatically limited
-5. **Timeout**: Long-running queries are cancelled after 30 seconds
-
-## Project Structure
+### Connection Refused
 
 ```
-mysql-readonly-mcp/
-├── package.json
-├── tsconfig.json
-├── vitest.config.ts
-├── README.md
-├── mcp.json.example
-├── src/
-│   ├── index.ts              # MCP server entry point
-│   ├── connection-manager.ts # Database connection handling
-│   ├── query-validator.ts    # SQL validation logic
-│   ├── types.ts              # TypeScript type definitions
-│   └── tools/
-│       ├── list-tables.ts
-│       ├── describe-table.ts
-│       ├── preview-data.ts
-│       ├── run-query.ts
-│       ├── show-relations.ts
-│       └── db-stats.ts
-├── tests/
-│   └── *.property.test.ts    # Property-based tests
-└── dist/                     # Compiled output
+Error: Connection refused to localhost:3306
 ```
+
+- Verify MySQL is running
+- Check host and port are correct
+- Ensure firewall allows the connection
+
+### Access Denied
+
+```
+Error: Access denied for user 'myuser'@'localhost'
+```
+
+- Verify username and password
+- Check user has SELECT privileges on the database
+- For remote connections, ensure user is allowed from your IP
+
+### Query Rejected
+
+```
+Error: Query rejected: Only SELECT, SHOW, DESCRIBE, and EXPLAIN statements are allowed
+```
+
+- The query contains forbidden keywords
+- Rephrase using only SELECT statements
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Links
+
+- [npm Package](https://www.npmjs.com/package/mysql-readonly-mcp)
+- [GitHub Repository](https://github.com/beydemirfurkan/mysql-readonly-mcp)
+- [Report Issues](https://github.com/beydemirfurkan/mysql-readonly-mcp/issues)

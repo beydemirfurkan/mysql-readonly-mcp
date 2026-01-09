@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * MySQL Read-Only MCP Server Entry Point
  * 
