@@ -1,6 +1,6 @@
 {
   "name": "mysql-readonly-mcp",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "MCP server for read-only MySQL database access",
   "type": "module",
   "main": "dist/index.js",
@@ -22,7 +22,9 @@
     "database",
     "read-only",
     "model-context-protocol",
-    "kiro"
+    "claude",
+    "ai",
+    "llm"
   ],
   "author": "Furkan Beydemir",
   "license": "MIT",

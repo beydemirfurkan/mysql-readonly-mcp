@@ -3,20 +3,21 @@
 [![npm version](https://badge.fury.io/js/mysql-readonly-mcp.svg)](https://www.npmjs.com/package/mysql-readonly-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A Model Context Protocol (MCP) server that provides secure read-only access to MySQL databases. Perfect for AI assistants like Kiro, Claude, and other MCP-compatible tools to explore database schemas, preview data, and run analytical queries safely.
+A Model Context Protocol (MCP) server that provides secure read-only access to MySQL databases. Perfect for AI assistants like Claude, GPT, and other MCP-compatible tools to explore database schemas, preview data, and run analytical queries safely.
 
-## Why Use This?
+## Features
 
-- **Safe Database Exploration**: Only read operations allowed - no risk of accidental data modification
-- **AI-Powered Analysis**: Let your AI assistant query and analyze your database directly
-- **Zero Configuration**: Works out of the box with npx - no installation required
-- **Multiple Databases**: Run separate instances for different databases (production, staging, analytics)
+- 🔒 **Secure Read-Only Access** - Only SELECT, SHOW, DESCRIBE, EXPLAIN allowed
+- 🚀 **Zero Configuration** - Works instantly with npx
+- 🗄️ **Multiple Databases** - Run separate instances for different databases
+- ⚡ **Query Validation** - Blocks any data modification attempts
+- 📊 **Rich Tools** - 6 powerful tools for database exploration
 
 ## Quick Start
 
 ### Using npx (Recommended)
 
-No installation needed! Just configure your MCP client:
+No installation needed! Configure your MCP client with:
 
 ```json
 {
@@ -55,9 +56,12 @@ mysql-readonly-mcp
 | `MYSQL_PASSWORD` | Database password | - |
 | `MYSQL_DATABASE` | Database name | - |
 
-### Kiro IDE Setup
+### Claude Desktop
 
-Add to `~/.kiro/settings/mcp.json`:
+Add to your Claude Desktop config file:
+
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
@@ -66,21 +70,33 @@ Add to `~/.kiro/settings/mcp.json`:
       "command": "npx",
       "args": ["-y", "mysql-readonly-mcp"],
       "env": {
-        "MYSQL_HOST": "production.example.com",
+        "MYSQL_HOST": "localhost",
         "MYSQL_PORT": "3306",
         "MYSQL_USER": "readonly_user",
         "MYSQL_PASSWORD": "your-password",
         "MYSQL_DATABASE": "production_db"
-      },
-      "disabled": false,
-      "autoApprove": [
-        "list_tables",
-        "describe_table",
-        "preview_data",
-        "run_query",
-        "show_relations",
-        "db_stats"
-      ]
+      }
+    }
+  }
+}
+```
+
+### VS Code with MCP Extension
+
+If using an MCP extension for VS Code, add to your MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "mysql": {
+      "command": "npx",
+      "args": ["-y", "mysql-readonly-mcp"],
+      "env": {
+        "MYSQL_HOST": "localhost",
+        "MYSQL_USER": "root",
+        "MYSQL_PASSWORD": "password",
+        "MYSQL_DATABASE": "mydb"
+      }
     }
   }
 }
@@ -88,7 +104,7 @@ Add to `~/.kiro/settings/mcp.json`:
 
 ### Multiple Databases
 
-You can connect to multiple databases by creating separate entries:
+Connect to multiple databases by creating separate entries:
 
 ```json
 {
@@ -127,24 +143,14 @@ You can connect to multiple databases by creating separate entries:
 
 Lists all tables in the database with metadata.
 
-**Parameters:**
-- None required
+**Returns:** Table name, type (BASE TABLE/VIEW), row count estimate, storage engine
 
-**Returns:**
-- Table name
-- Table type (BASE TABLE / VIEW)
-- Estimated row count
-- Storage engine
-
-**Example:**
+**Example output:**
 ```
-> List all tables in the database
-
 Tables in database:
 - users (BASE TABLE, ~15,000 rows, InnoDB)
 - orders (BASE TABLE, ~250,000 rows, InnoDB)
 - products (BASE TABLE, ~5,000 rows, InnoDB)
-- user_sessions (VIEW, ~0 rows)
 ```
 
 ---
@@ -156,24 +162,17 @@ Returns detailed schema information for a table.
 **Parameters:**
 - `table` (required): Table name
 
-**Returns:**
-- Column details (name, type, nullable, default, extra)
-- Primary key columns
-- Foreign key relationships
-- Index information
+**Returns:** Columns (name, type, nullable, default), primary key, foreign keys, indexes
 
-**Example:**
+**Example output:**
 ```
-> Describe the users table
-
 Table: users
 
 Columns:
 - id (int, NOT NULL, auto_increment) - PRIMARY KEY
 - email (varchar(255), NOT NULL)
 - name (varchar(100), NULL)
-- created_at (datetime, NOT NULL, DEFAULT CURRENT_TIMESTAMP)
-- status (enum('active','inactive'), NOT NULL, DEFAULT 'active')
+- created_at (datetime, DEFAULT CURRENT_TIMESTAMP)
 
 Foreign Keys:
 - fk_users_company: company_id -> companies.id
@@ -181,7 +180,6 @@ Foreign Keys:
 Indexes:
 - PRIMARY (id) - unique
 - idx_email (email) - unique
-- idx_status (status)
 ```
 
 ---
@@ -196,17 +194,11 @@ Previews table data with optional filtering.
 - `limit` (optional): Max rows (default: 10, max: 100)
 - `where` (optional): Filter condition (without WHERE keyword)
 
-**Returns:**
-- Selected columns and rows
-- Long text fields are automatically truncated (>200 chars)
-
 **Examples:**
 ```
-> Show me the first 5 users
-
-> Preview orders table with only id, total, status columns
-
-> Show products where price > 100 limit 20
+preview_data table=users
+preview_data table=users columns=["id","name","email"] limit=20
+preview_data table=orders where="status = 'pending'"
 ```
 
 ---
@@ -216,39 +208,25 @@ Previews table data with optional filtering.
 Executes custom SELECT queries with validation.
 
 **Parameters:**
-- `query` (required): SQL query (SELECT, SHOW, DESCRIBE, EXPLAIN only)
+- `query` (required): SQL query
 - `limit` (optional): Max rows (default: 1000, max: 5000)
 
-**Returns:**
-- Query results
-- Execution time
-- Truncation warning if results exceeded limit
+**Allowed:** SELECT, SHOW, DESCRIBE, EXPLAIN
 
-**Allowed Statements:**
-- `SELECT`
-- `SHOW`
-- `DESCRIBE`
-- `EXPLAIN`
-
-**Blocked Statements:**
-- INSERT, UPDATE, DELETE
-- DROP, ALTER, TRUNCATE
-- CREATE, REPLACE
-- GRANT, REVOKE
-- LOCK, UNLOCK
+**Blocked:** INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, GRANT, REVOKE, LOCK
 
 **Examples:**
-```
-> SELECT COUNT(*) FROM orders WHERE status = 'completed'
+```sql
+SELECT COUNT(*) FROM orders WHERE status = 'completed'
 
-> SELECT u.name, COUNT(o.id) as order_count 
-  FROM users u 
-  LEFT JOIN orders o ON u.id = o.user_id 
-  GROUP BY u.id 
-  ORDER BY order_count DESC 
-  LIMIT 10
+SELECT u.name, COUNT(o.id) as order_count 
+FROM users u 
+LEFT JOIN orders o ON u.id = o.user_id 
+GROUP BY u.id 
+ORDER BY order_count DESC 
+LIMIT 10
 
-> EXPLAIN SELECT * FROM users WHERE email = 'test@example.com'
+EXPLAIN SELECT * FROM users WHERE email = 'test@example.com'
 ```
 
 ---
@@ -265,20 +243,17 @@ Shows all foreign key relationships for a table.
 - Tables this table references (references)
 - Relationship type (one-to-one / one-to-many)
 
-**Example:**
+**Example output:**
 ```
-> Show relationships for the orders table
-
 Table: orders
 
-Referenced By (other tables pointing to this):
+Referenced By:
 - order_items.order_id -> orders.id (one-to-many)
 - payments.order_id -> orders.id (one-to-many)
-- shipments.order_id -> orders.id (one-to-one)
 
-References (this table points to):
-- orders.user_id -> users.id (many-to-one)
-- orders.product_id -> products.id (many-to-one)
+References:
+- orders.user_id -> users.id
+- orders.product_id -> products.id
 ```
 
 ---
@@ -287,9 +262,6 @@ References (this table points to):
 
 Returns database statistics and overview.
 
-**Parameters:**
-- None required
-
 **Returns:**
 - Total table count
 - Total estimated row count
@@ -297,10 +269,8 @@ Returns database statistics and overview.
 - Top 10 largest tables by row count
 - Top 10 largest tables by data size
 
-**Example:**
+**Example output:**
 ```
-> Show database statistics
-
 Database Statistics:
 - Total Tables: 45
 - Total Rows: ~2,500,000
@@ -310,60 +280,53 @@ Largest Tables (by rows):
 1. logs - 1,200,000 rows
 2. events - 500,000 rows
 3. orders - 250,000 rows
-...
-
-Largest Tables (by size):
-1. attachments - 450 MB
-2. logs - 320 MB
-3. products - 180 MB
-...
 ```
 
-## Security Features
+## Security
 
 ### Read-Only Enforcement
 
-All queries are validated before execution. The server will reject any query containing:
-- Data modification keywords (INSERT, UPDATE, DELETE)
-- Schema modification keywords (DROP, ALTER, CREATE, TRUNCATE)
-- Permission keywords (GRANT, REVOKE)
-- Lock keywords (LOCK, UNLOCK)
+All queries are validated before execution. The server rejects any query containing:
+- Data modification: INSERT, UPDATE, DELETE
+- Schema modification: DROP, ALTER, CREATE, TRUNCATE
+- Permissions: GRANT, REVOKE
+- Locking: LOCK, UNLOCK
 
 ### Query Limits
 
-- **Preview data**: Max 100 rows per request
-- **Custom queries**: Max 5000 rows per request
+- **Preview data**: Max 100 rows
+- **Custom queries**: Max 5000 rows
 - **Timeout**: 30 seconds per query
 
 ### Credential Protection
 
-- Database passwords are never exposed in error messages
-- Connection errors show host/database info but mask credentials
+- Passwords never exposed in error messages
+- Connection errors mask credentials
 - Query logs are sanitized
 
 ## Use Cases
 
-### Database Documentation
+**Database Documentation**
 ```
-> List all tables and describe each one to document the schema
-```
-
-### Data Analysis
-```
-> How many orders were placed last month?
-> What's the average order value by customer segment?
+List all tables and describe each one to document the schema
 ```
 
-### Debugging
+**Data Analysis**
 ```
-> Show me the last 10 error logs
-> Find users who signed up but never made a purchase
+How many orders were placed last month?
+What's the average order value by customer segment?
 ```
 
-### Schema Exploration
+**Debugging**
 ```
-> What tables reference the users table?
-> Show me all indexes on the orders table
+Show me the last 10 error logs
+Find users who signed up but never made a purchase
+```
+
+**Schema Exploration**
+```
+What tables reference the users table?
+Show me all indexes on the orders table
 ```
 
 ## Development
@@ -386,46 +349,29 @@ npm test
 ### Running Locally
 
 ```bash
-# Set environment variables
 export MYSQL_HOST=localhost
 export MYSQL_USER=root
 export MYSQL_PASSWORD=password
 export MYSQL_DATABASE=mydb
 
-# Run the server
 npm start
 ```
 
 ## Troubleshooting
 
 ### Connection Refused
-
-```
-Error: Connection refused to localhost:3306
-```
-
 - Verify MySQL is running
 - Check host and port are correct
 - Ensure firewall allows the connection
 
 ### Access Denied
-
-```
-Error: Access denied for user 'myuser'@'localhost'
-```
-
 - Verify username and password
-- Check user has SELECT privileges on the database
+- Check user has SELECT privileges
 - For remote connections, ensure user is allowed from your IP
 
 ### Query Rejected
-
-```
-Error: Query rejected: Only SELECT, SHOW, DESCRIBE, and EXPLAIN statements are allowed
-```
-
 - The query contains forbidden keywords
-- Rephrase using only SELECT statements
+- Use only SELECT, SHOW, DESCRIBE, EXPLAIN statements
 
 ## Contributing
 
