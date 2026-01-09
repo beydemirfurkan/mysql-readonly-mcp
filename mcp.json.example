@@ -1,0 +1,57 @@
+{
+  "mcpServers": {
+    "mysql-production": {
+      "command": "node",
+      "args": ["/path/to/mysql-readonly-mcp/dist/index.js"],
+      "env": {
+        "MYSQL_HOST": "production-host.example.com",
+        "MYSQL_PORT": "3306",
+        "MYSQL_USER": "readonly_user",
+        "MYSQL_PASSWORD": "your-password",
+        "MYSQL_DATABASE": "production_db"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "list_tables",
+        "describe_table",
+        "preview_data",
+        "run_query",
+        "show_relations",
+        "db_stats"
+      ]
+    },
+    "mysql-staging": {
+      "command": "node",
+      "args": ["/path/to/mysql-readonly-mcp/dist/index.js"],
+      "env": {
+        "MYSQL_HOST": "staging-host.example.com",
+        "MYSQL_PORT": "3306",
+        "MYSQL_USER": "readonly_user",
+        "MYSQL_PASSWORD": "your-password",
+        "MYSQL_DATABASE": "staging_db"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "list_tables",
+        "describe_table",
+        "preview_data",
+        "run_query",
+        "show_relations",
+        "db_stats"
+      ]
+    },
+    "mysql-analytics": {
+      "command": "node",
+      "args": ["/path/to/mysql-readonly-mcp/dist/index.js"],
+      "env": {
+        "MYSQL_HOST": "analytics-host.example.com",
+        "MYSQL_PORT": "3306",
+        "MYSQL_USER": "analytics_user",
+        "MYSQL_PASSWORD": "your-password",
+        "MYSQL_DATABASE": "analytics_db"
+      },
+      "disabled": true,
+      "autoApprove": []
+    }
+  }
+}
