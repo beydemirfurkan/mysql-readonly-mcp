@@ -16,7 +16,8 @@ import {
   truncateText, 
   isTruncated, 
   enforceRowLimit,
-  rowsContainOnlySpecifiedColumns
+  rowsContainOnlySpecifiedColumns,
+  sanitizeWhereClause
 } from '../src/tools/preview-data';
 import { LIMITS } from '../src/types';
 
@@ -82,6 +83,26 @@ const rowWithColumnsArb = (columns: string[]) => {
 };
 
 describe('Preview Data Property Tests', () => {
+  describe('Preview Filter Validation', () => {
+    it('should allow basic filter expressions', () => {
+      expect(sanitizeWhereClause("status = 'pending' AND created_at >= '2024-01-01'")).toBe(
+        "status = 'pending' AND created_at >= '2024-01-01'"
+      );
+    });
+
+    it('should reject advanced SQL clauses in preview filters', () => {
+      expect(() => sanitizeWhereClause("id = 1 UNION SELECT password FROM users")).toThrow(
+        'Preview filter contains unsupported SQL syntax'
+      );
+      expect(() => sanitizeWhereClause('id = 1 ORDER BY created_at DESC')).toThrow(
+        'Preview filter contains unsupported SQL syntax'
+      );
+      expect(() => sanitizeWhereClause('id = 1; SELECT * FROM users')).toThrow(
+        'Preview filter contains unsupported SQL syntax'
+      );
+    });
+  });
+
   /**
    * Property 3: Row Limit Enforcement
    * 

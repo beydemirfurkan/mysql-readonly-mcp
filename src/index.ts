@@ -16,6 +16,7 @@
  */
 
 import 'dotenv/config';
+import { createRequire } from 'node:module';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -36,8 +37,9 @@ import { dbStats, DbStatsInput } from './tools/db-stats.js';
 /**
  * Server configuration
  */
+const require = createRequire(import.meta.url);
+const { version: SERVER_VERSION } = require('../package.json') as { version: string };
 const SERVER_NAME = 'mysql-readonly-mcp';
-const SERVER_VERSION = '1.0.0';
 
 /**
  * Tool definitions for MCP protocol
@@ -86,7 +88,7 @@ const TOOL_DEFINITIONS = [
         },
         where: {
           type: 'string',
-          description: 'Optional WHERE clause for filtering (without the WHERE keyword).'
+          description: 'Optional basic filter expression (without the WHERE keyword). Use run_query for complex SQL.'
         }
       },
       required: ['table']

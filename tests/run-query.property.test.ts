@@ -11,6 +11,7 @@
 
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
+import { applyQueryLimit } from '../src/connection-manager';
 import { 
   enforceQueryLimit,
   isValidRunQueryOutput,
@@ -74,6 +75,26 @@ const invalidOutputArb = fc.oneof(
 );
 
 describe('Run Query Property Tests', () => {
+  describe('Query Limit Enforcement', () => {
+    it('should enforce the outer limit even when the query already contains LIMIT', () => {
+      expect(applyQueryLimit('SELECT * FROM users LIMIT 100000', 25)).toBe(
+        'SELECT * FROM (SELECT * FROM users LIMIT 100000) AS __mysql_readonly_mcp_query LIMIT 25'
+      );
+    });
+
+    it('should not rewrite non-SELECT statements', () => {
+      expect(applyQueryLimit('SHOW TABLES', 25)).toBe('SHOW TABLES');
+      expect(applyQueryLimit('DESCRIBE users', 25)).toBe('DESCRIBE users');
+      expect(applyQueryLimit('EXPLAIN SELECT * FROM users', 25)).toBe('EXPLAIN SELECT * FROM users');
+    });
+
+    it('should strip a trailing semicolon before applying limits', () => {
+      expect(applyQueryLimit('SELECT * FROM users;', 10)).toBe(
+        'SELECT * FROM (SELECT * FROM users) AS __mysql_readonly_mcp_query LIMIT 10'
+      );
+    });
+  });
+
   /**
    * Property 4: Truncation Flag Consistency
    * 

@@ -150,7 +150,9 @@ Parameters:
 - `table` (required)
 - `columns` (optional)
 - `limit` (optional, default `10`, max `100`)
-- `where` (optional, without the `WHERE` keyword)
+- `where` (optional basic filter expression, without the `WHERE` keyword)
+
+For complex filtering, joins, unions, or advanced SQL expressions, use `run_query` instead of `preview_data`.
 
 #### `run_query`
 

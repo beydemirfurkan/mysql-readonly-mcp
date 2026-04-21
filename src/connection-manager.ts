@@ -13,6 +13,8 @@ import mysql, { Pool, PoolOptions, RowDataPacket, FieldPacket } from 'mysql2/pro
 import { DatabaseConfig, QueryResult, FieldInfo, LIMITS } from './types.js';
 import { validate } from './query-validator.js';
 
+const NON_SELECT_QUERY_PREFIXES = ['SHOW', 'DESCRIBE', 'EXPLAIN'] as const;
+
 /**
  * Sensitive patterns to sanitize from error messages and logs
  */
@@ -54,6 +56,22 @@ export function createConnectionErrorMessage(config: DatabaseConfig, error: Erro
   const sanitizedError = sanitizeMessage(error.message);
   
   return `Database connection failed: ${safeDetails} - ${sanitizedError}`;
+}
+
+function stripTrailingSemicolon(query: string): string {
+  return query.trim().replace(/;+$/u, '').trim();
+}
+
+export function applyQueryLimit(query: string, limit: number): string {
+  const trimmedQuery = stripTrailingSemicolon(query);
+  const normalizedQuery = trimmedQuery.toUpperCase();
+
+  if (NON_SELECT_QUERY_PREFIXES.some(prefix => normalizedQuery.startsWith(prefix))) {
+    return trimmedQuery;
+  }
+
+  // Wrap SELECT queries so the enforced limit still applies when user SQL already includes LIMIT.
+  return `SELECT * FROM (${trimmedQuery}) AS __mysql_readonly_mcp_query LIMIT ${limit}`;
 }
 
 
@@ -198,7 +216,7 @@ export class ConnectionManager {
     limit: number
   ): Promise<QueryResult> {
     // Request one more row than limit to detect truncation
-    const queryWithLimit = this.addLimitToQuery(query, limit + 1);
+    const queryWithLimit = applyQueryLimit(query, limit + 1);
     
     const [rows, fields] = await pool.execute<RowDataPacket[]>(queryWithLimit, params);
     
@@ -218,27 +236,6 @@ export class ConnectionManager {
       rowCount: resultRows.length,
       truncated
     };
-  }
-
-  /**
-   * Adds LIMIT clause to query if not already present
-   */
-  private addLimitToQuery(query: string, limit: number): string {
-    const normalizedQuery = query.trim().toUpperCase();
-    
-    // Check if query already has LIMIT
-    if (/\bLIMIT\s+\d+/i.test(query)) {
-      return query;
-    }
-    
-    // Don't add LIMIT to SHOW, DESCRIBE, or EXPLAIN queries
-    if (normalizedQuery.startsWith('SHOW') || 
-        normalizedQuery.startsWith('DESCRIBE') || 
-        normalizedQuery.startsWith('EXPLAIN')) {
-      return query;
-    }
-    
-    return `${query.trim()} LIMIT ${limit}`;
   }
 
   /**

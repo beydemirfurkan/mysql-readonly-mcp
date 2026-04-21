@@ -33,6 +33,10 @@ export interface PreviewDataOutput {
   truncatedFields: string[];
 }
 
+const PREVIEW_WHERE_UNSAFE_PATTERN = /(;|--|#|\/\*|\*\/|\b(SELECT|SHOW|DESCRIBE|EXPLAIN|UNION|FROM|JOIN|ORDER\s+BY|GROUP\s+BY|HAVING|LIMIT|OFFSET|INTO|OUTFILE|DUMPFILE|SLEEP|BENCHMARK)\b)/iu;
+const PREVIEW_WHERE_ALLOWED_CHARACTERS = /^[\w\s`"'().,<>=%!+\-]+$/u;
+const PREVIEW_WHERE_ERROR = 'Preview filter contains unsupported SQL syntax. Use a basic filter expression or run_query for complex queries.';
+
 /**
  * Escapes SQL identifier to prevent injection
  * Removes backticks and other dangerous characters
@@ -111,7 +115,7 @@ function buildColumnList(columns?: string[]): string {
  * Sanitizes WHERE clause to prevent injection
  * Only allows basic comparison operators and logical operators
  */
-function sanitizeWhereClause(where?: string): string | null {
+export function sanitizeWhereClause(where?: string): string | null {
   if (!where || typeof where !== 'string') {
     return null;
   }
@@ -121,11 +125,12 @@ function sanitizeWhereClause(where?: string): string | null {
   if (!trimmed) {
     return null;
   }
-  
-  // Remove any semicolons to prevent multiple statements
-  const sanitized = trimmed.replace(/;/g, '');
-  
-  return sanitized;
+
+  if (PREVIEW_WHERE_UNSAFE_PATTERN.test(trimmed) || !PREVIEW_WHERE_ALLOWED_CHARACTERS.test(trimmed)) {
+    throw new Error(PREVIEW_WHERE_ERROR);
+  }
+
+  return trimmed;
 }
 
 /**
