@@ -33,6 +33,10 @@
     "type": "git",
     "url": "git+https://github.com/beydemirfurkan/mysql-readonly-mcp.git"
   },
+  "homepage": "https://github.com/beydemirfurkan/mysql-readonly-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/beydemirfurkan/mysql-readonly-mcp/issues"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "mysql2": "^3.11.0",
