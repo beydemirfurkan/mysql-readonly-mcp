@@ -18,7 +18,8 @@
         "preview_data",
         "run_query",
         "show_relations",
-        "db_stats"
+        "db_stats",
+        "db_info"
       ]
     },
     "mysql-staging": {
@@ -29,7 +30,8 @@
         "MYSQL_PORT": "3306",
         "MYSQL_USER": "readonly_user",
         "MYSQL_PASSWORD": "your-password",
-        "MYSQL_DATABASE": "staging_db"
+        "MYSQL_DATABASE": "staging_db",
+        "MYSQL_QUERY_TIMEOUT_MS": "30000"
       },
       "disabled": false,
       "autoApprove": [
@@ -38,7 +40,8 @@
         "preview_data",
         "run_query",
         "show_relations",
-        "db_stats"
+        "db_stats",
+        "db_info"
       ]
     },
     "mysql-analytics": {
@@ -49,7 +52,8 @@
         "MYSQL_PORT": "3306",
         "MYSQL_USER": "analytics_user",
         "MYSQL_PASSWORD": "your-password",
-        "MYSQL_DATABASE": "analytics_db"
+        "MYSQL_DATABASE": "analytics_db",
+        "MYSQL_QUERY_TIMEOUT_MS": "120000"
       },
       "disabled": true,
       "autoApprove": []

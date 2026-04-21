@@ -38,6 +38,7 @@ The server reads its connection settings from environment variables.
 | `MYSQL_USER` | MySQL user | `root` |
 | `MYSQL_PASSWORD` | MySQL password | empty |
 | `MYSQL_DATABASE` | Database name | `mysql` |
+| `MYSQL_QUERY_TIMEOUT_MS` | Query execution timeout in milliseconds (minimum `1000`) | `30000` |
 
 Each server instance connects to one database. To work with multiple databases, configure multiple MCP server entries and point each one to a different `MYSQL_DATABASE` value.
 
@@ -131,6 +132,7 @@ Use separate MCP server entries when you need access to more than one database.
 | `run_query` | Execute validated read-only SQL | `query`, `limit` |
 | `show_relations` | Show incoming and outgoing foreign key relations | `table` |
 | `db_stats` | Summarize database size and largest tables | None |
+| `db_info` | Show which database this server instance is connected to | None |
 
 ### Tool details
 
@@ -187,6 +189,14 @@ Returns:
 - Largest tables by row count
 - Largest tables by size
 
+#### `db_info`
+
+Returns the connection details for this server instance: database name, host, port, user, and active query timeout. Useful when multiple MCP server instances are configured and you need to confirm which one you are addressing. The password is never included in the output.
+
+## Prompts
+
+The server exposes a `connection_info` prompt for MCP clients that support prompts. When retrieved, it provides a summary of the database this server connects to and a reminder that the server is scoped to that single database. This helps LLM clients avoid routing queries to the wrong server instance.
+
 ## Security model
 
 The server is intended for inspection and analysis, not for write operations.
@@ -194,7 +204,7 @@ The server is intended for inspection and analysis, not for write operations.
 - Query validation blocks non-read-only statements
 - Preview queries are capped at 100 rows
 - Custom queries are capped at 5000 rows
-- Query execution timeout is 30 seconds
+- Query execution timeout defaults to 30 seconds and is configurable via `MYSQL_QUERY_TIMEOUT_MS`
 - Sensitive credentials are sanitized in error messages
 
 ## Troubleshooting
