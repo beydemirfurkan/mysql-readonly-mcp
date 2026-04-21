@@ -1,6 +1,6 @@
 {
   "name": "mysql-readonly-mcp",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "MCP server for read-only MySQL database access",
   "type": "module",
   "main": "dist/index.js",
