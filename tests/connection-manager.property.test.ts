@@ -74,7 +74,8 @@ const databaseConfigArb = fc.record({
   port: fc.integer({ min: 1024, max: 65535 }),
   user: usernameArb,
   password: passwordArb,
-  database: databaseNameArb
+  database: databaseNameArb,
+  queryTimeoutMs: fc.integer({ min: 1000, max: 600000 })
 }) as fc.Arbitrary<DatabaseConfig>;
 
 /**

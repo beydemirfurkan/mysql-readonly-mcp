@@ -17,7 +17,8 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { ConnectionManager, createConfigFromEnv } from './connection-manager.js';
-import { DatabaseConfig } from './types.js';
+import { buildConnectionInfoPrompt, createDbInfoOutput } from './server-info.js';
+import type { DatabaseConfig } from './types.js';
 import { listTables, ListTablesInput } from './tools/list-tables.js';
 import { describeTable, DescribeTableInput } from './tools/describe-table.js';
 import { previewData, PreviewDataInput } from './tools/preview-data.js';
@@ -137,23 +138,6 @@ function createToolDefinitions(config: DatabaseConfig) {
   ];
 }
 
-/**
- * Builds the connection_info prompt body shown to the LLM.
- */
-function buildConnectionInfoPrompt(config: DatabaseConfig): string {
-  const toolList = 'list_tables, describe_table, preview_data, run_query, show_relations, db_stats, db_info';
-  return [
-    `This MCP server provides READ-ONLY access to:`,
-    `  Database : ${config.database}`,
-    `  Host     : ${config.host}:${config.port}`,
-    `  User     : ${config.user}`,
-    ``,
-    `IMPORTANT: This server ONLY has access to the '${config.database}' database.`,
-    `Do NOT attempt to access other databases or use different credentials through this server.`,
-    `Available tools: ${toolList}`
-  ].join('\n');
-}
-
 async function createServer(): Promise<Server> {
   const server = new Server(
     { name: SERVER_NAME, version: SERVER_VERSION },
@@ -266,14 +250,7 @@ async function createServer(): Promise<Server> {
         }
 
         case 'db_info': {
-          const info = {
-            database: config.database,
-            host: config.host,
-            port: config.port,
-            user: config.user,
-            queryTimeoutMs: config.queryTimeoutMs,
-            note: `This MCP server provides READ-ONLY access to the '${config.database}' database only.`
-          };
+          const info = createDbInfoOutput(config);
           return { content: [{ type: 'text', text: JSON.stringify(info, null, 2) }] };
         }
 
