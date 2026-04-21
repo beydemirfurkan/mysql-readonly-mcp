@@ -54,8 +54,12 @@ export function createConnectionErrorMessage(config: DatabaseConfig, error: Erro
   // Never include password in error message
   const safeDetails = `${config.name}@${config.host}:${config.port}/${config.database}`;
   const sanitizedError = sanitizeMessage(error.message);
-  
-  return `Database connection failed: ${safeDetails} - ${sanitizedError}`;
+
+  return (
+    `Database connection failed: ${safeDetails} - ${sanitizedError}. ` +
+    `NOTE: This MCP server is configured ONLY for the '${config.database}' database on ${config.host}:${config.port}. ` +
+    `Do not retry with different credentials or attempt to access other databases through this server.`
+  );
 }
 
 function stripTrailingSemicolon(query: string): string {

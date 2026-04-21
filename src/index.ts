@@ -1,18 +1,6 @@
 #!/usr/bin/env node
 /**
  * MySQL Read-Only MCP Server Entry Point
- * 
- * MCP server that provides read-only access to a MySQL database with tools for:
- * - Listing tables
- * - Describing table schemas
- * - Previewing data
- * - Running custom SELECT queries
- * - Showing table relationships
- * - Getting database statistics
- * 
- * @module index
- * 
- * **Validates: Requirements 1.1**
  */
 
 import 'dotenv/config';
@@ -22,11 +10,14 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
   ErrorCode,
   McpError
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { ConnectionManager, createConfigFromEnv } from './connection-manager.js';
+import { DatabaseConfig } from './types.js';
 import { listTables, ListTablesInput } from './tools/list-tables.js';
 import { describeTable, DescribeTableInput } from './tools/describe-table.js';
 import { previewData, PreviewDataInput } from './tools/preview-data.js';
@@ -34,138 +25,185 @@ import { runQuery, RunQueryInput } from './tools/run-query.js';
 import { showRelations, ShowRelationsInput } from './tools/show-relations.js';
 import { dbStats, DbStatsInput } from './tools/db-stats.js';
 
-/**
- * Server configuration
- */
 const require = createRequire(import.meta.url);
 const { version: SERVER_VERSION } = require('../package.json') as { version: string };
 const SERVER_NAME = 'mysql-readonly-mcp';
 
 /**
- * Tool definitions for MCP protocol
+ * Builds tool definitions with database context so the LLM knows which
+ * server connects to which database.
  */
-const TOOL_DEFINITIONS = [
-  {
-    name: 'list_tables',
-    description: 'Lists all tables in a database with their type (BASE TABLE or VIEW), row count estimate, and storage engine.',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {}
-    }
-  },
-  {
-    name: 'describe_table',
-    description: 'Returns detailed schema information for a table including columns (name, type, nullable, default, extra), primary key, foreign keys, and indexes.',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        table: {
-          type: 'string',
-          description: 'Name of the table to describe.'
-        }
-      },
-      required: ['table']
-    }
-  },
-  {
-    name: 'preview_data',
-    description: 'Previews table data with optional column selection, WHERE clause filtering, and automatic text truncation for long fields (>200 chars).',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        table: {
-          type: 'string',
-          description: 'Name of the table to preview.'
-        },
-        columns: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Specific columns to return. Returns all columns if not specified.'
-        },
-        limit: {
-          type: 'number',
-          description: 'Maximum rows to return (default: 10, max: 100).'
-        },
-        where: {
-          type: 'string',
-          description: 'Optional basic filter expression (without the WHERE keyword). Use run_query for complex SQL.'
-        }
-      },
-      required: ['table']
-    }
-  },
-  {
-    name: 'run_query',
-    description: 'Executes a custom SELECT query with validation. Only SELECT, SHOW, DESCRIBE, and EXPLAIN statements are allowed. Results are limited and execution time is tracked.',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        query: {
-          type: 'string',
-          description: 'SQL query to execute. Must be a read-only query (SELECT, SHOW, DESCRIBE, EXPLAIN).'
-        },
-        limit: {
-          type: 'number',
-          description: 'Maximum rows to return (default: 1000, max: 5000).'
-        }
-      },
-      required: ['query']
-    }
-  },
-  {
-    name: 'show_relations',
-    description: 'Shows all foreign key relationships for a table, including tables that reference this table and tables this table references, with relationship type (one-to-one or one-to-many).',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        table: {
-          type: 'string',
-          description: 'Name of the table to show relationships for.'
-        }
-      },
-      required: ['table']
-    }
-  },
-  {
-    name: 'db_stats',
-    description: 'Returns database statistics including total table count, total row count estimate, database size, and top 10 largest tables by rows and by size.',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {}
-    }
-  }
-];
+function createToolDefinitions(config: DatabaseConfig) {
+  const dbCtx = `\`${config.database}\` database (${config.host}:${config.port})`;
 
-/**
- * Creates and configures the MCP server
- */
-async function createServer(): Promise<Server> {
-  const server = new Server(
+  return [
     {
-      name: SERVER_NAME,
-      version: SERVER_VERSION
+      name: 'list_tables',
+      description: `Lists all tables in the ${dbCtx} with their type (BASE TABLE or VIEW), row count estimate, and storage engine.`,
+      inputSchema: {
+        type: 'object' as const,
+        properties: {}
+      }
     },
     {
+      name: 'describe_table',
+      description: `Returns detailed schema information for a table in the ${dbCtx}, including columns (name, type, nullable, default, extra), primary key, foreign keys, and indexes.`,
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          table: {
+            type: 'string',
+            description: 'Name of the table to describe.'
+          }
+        },
+        required: ['table']
+      }
+    },
+    {
+      name: 'preview_data',
+      description: `Previews rows from a table in the ${dbCtx} with optional column selection, WHERE clause filtering, and automatic text truncation for long fields (>200 chars).`,
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          table: {
+            type: 'string',
+            description: 'Name of the table to preview.'
+          },
+          columns: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Specific columns to return. Returns all columns if not specified.'
+          },
+          limit: {
+            type: 'number',
+            description: 'Maximum rows to return (default: 10, max: 100).'
+          },
+          where: {
+            type: 'string',
+            description: 'Optional basic filter expression (without the WHERE keyword). Use run_query for complex SQL.'
+          }
+        },
+        required: ['table']
+      }
+    },
+    {
+      name: 'run_query',
+      description: `Executes a custom SELECT query against the ${dbCtx} with validation. Only SELECT, SHOW, DESCRIBE, and EXPLAIN statements are allowed. Results are limited and execution time is tracked.`,
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          query: {
+            type: 'string',
+            description: 'SQL query to execute. Must be a read-only query (SELECT, SHOW, DESCRIBE, EXPLAIN).'
+          },
+          limit: {
+            type: 'number',
+            description: 'Maximum rows to return (default: 1000, max: 5000).'
+          }
+        },
+        required: ['query']
+      }
+    },
+    {
+      name: 'show_relations',
+      description: `Shows all foreign key relationships for a table in the ${dbCtx}, including tables that reference this table and tables this table references, with relationship type (one-to-one or one-to-many).`,
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          table: {
+            type: 'string',
+            description: 'Name of the table to show relationships for.'
+          }
+        },
+        required: ['table']
+      }
+    },
+    {
+      name: 'db_stats',
+      description: `Returns statistics for the ${dbCtx}: total table count, total row count estimate, database size, and top 10 largest tables by rows and by size.`,
+      inputSchema: {
+        type: 'object' as const,
+        properties: {}
+      }
+    },
+    {
+      name: 'db_info',
+      description: `Returns connection information for this MCP server instance: which database, host, port, and user it is configured for. Use this to confirm you are using the correct server before running queries.`,
+      inputSchema: {
+        type: 'object' as const,
+        properties: {}
+      }
+    }
+  ];
+}
+
+/**
+ * Builds the connection_info prompt body shown to the LLM.
+ */
+function buildConnectionInfoPrompt(config: DatabaseConfig): string {
+  const toolList = 'list_tables, describe_table, preview_data, run_query, show_relations, db_stats, db_info';
+  return [
+    `This MCP server provides READ-ONLY access to:`,
+    `  Database : ${config.database}`,
+    `  Host     : ${config.host}:${config.port}`,
+    `  User     : ${config.user}`,
+    ``,
+    `IMPORTANT: This server ONLY has access to the '${config.database}' database.`,
+    `Do NOT attempt to access other databases or use different credentials through this server.`,
+    `Available tools: ${toolList}`
+  ].join('\n');
+}
+
+async function createServer(): Promise<Server> {
+  const server = new Server(
+    { name: SERVER_NAME, version: SERVER_VERSION },
+    {
       capabilities: {
-        tools: {}
+        tools: {},
+        prompts: {}
       }
     }
   );
 
-  // Initialize connection manager
   const connectionManager = new ConnectionManager();
   const config = createConfigFromEnv();
 
   await connectionManager.initialize(config);
+  // Validate credentials at startup — fail fast with a clear message.
+  await connectionManager.testConnection();
 
-  // Register list tools handler
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
+  const toolDefinitions = createToolDefinitions(config);
+
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: toolDefinitions
+  }));
+
+  server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+    prompts: [
+      {
+        name: 'connection_info',
+        description: `Describes which database this MCP server connects to and what operations are available.`
+      }
+    ]
+  }));
+
+  server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+    if (request.params.name !== 'connection_info') {
+      throw new McpError(ErrorCode.InvalidParams, `Unknown prompt: ${request.params.name}`);
+    }
     return {
-      tools: TOOL_DEFINITIONS
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: buildConnectionInfoPrompt(config)
+          }
+        }
+      ]
     };
   });
 
-  // Register call tool handler
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
@@ -174,32 +212,16 @@ async function createServer(): Promise<Server> {
         case 'list_tables': {
           const input: ListTablesInput = {};
           const result = await listTables(connectionManager, input);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(result, null, 2)
-              }
-            ]
-          };
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
 
         case 'describe_table': {
           if (!args?.table) {
             throw new McpError(ErrorCode.InvalidParams, 'Missing required parameter: table');
           }
-          const input: DescribeTableInput = {
-            table: args.table as string
-          };
+          const input: DescribeTableInput = { table: args.table as string };
           const result = await describeTable(connectionManager, input);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(result, null, 2)
-              }
-            ]
-          };
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
 
         case 'preview_data': {
@@ -213,14 +235,7 @@ async function createServer(): Promise<Server> {
             where: args?.where as string | undefined
           };
           const result = await previewData(connectionManager, input);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(result, null, 2)
-              }
-            ]
-          };
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
 
         case 'run_query': {
@@ -232,85 +247,56 @@ async function createServer(): Promise<Server> {
             limit: args?.limit as number | undefined
           };
           const result = await runQuery(connectionManager, input);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(result, null, 2)
-              }
-            ]
-          };
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
 
         case 'show_relations': {
           if (!args?.table) {
             throw new McpError(ErrorCode.InvalidParams, 'Missing required parameter: table');
           }
-          const input: ShowRelationsInput = {
-            table: args.table as string
-          };
+          const input: ShowRelationsInput = { table: args.table as string };
           const result = await showRelations(connectionManager, input);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(result, null, 2)
-              }
-            ]
-          };
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
 
         case 'db_stats': {
           const input: DbStatsInput = {};
           const result = await dbStats(connectionManager, input);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(result, null, 2)
-              }
-            ]
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+
+        case 'db_info': {
+          const info = {
+            database: config.database,
+            host: config.host,
+            port: config.port,
+            user: config.user,
+            note: `This MCP server provides READ-ONLY access to the '${config.database}' database only.`
           };
+          return { content: [{ type: 'text', text: JSON.stringify(info, null, 2) }] };
         }
 
         default:
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
       }
     } catch (error) {
-      if (error instanceof McpError) {
-        throw error;
-      }
-      
+      if (error instanceof McpError) throw error;
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       throw new McpError(ErrorCode.InternalError, errorMessage);
     }
   });
 
-  // Handle server shutdown
-  process.on('SIGINT', async () => {
-    await connectionManager.close();
-    process.exit(0);
-  });
-
-  process.on('SIGTERM', async () => {
-    await connectionManager.close();
-    process.exit(0);
-  });
+  process.on('SIGINT', async () => { await connectionManager.close(); process.exit(0); });
+  process.on('SIGTERM', async () => { await connectionManager.close(); process.exit(0); });
 
   return server;
 }
 
-/**
- * Main entry point
- */
 async function main(): Promise<void> {
   try {
     const server = await createServer();
     const transport = new StdioServerTransport();
-    
     await server.connect(transport);
-    
-    // Log to stderr to avoid interfering with stdio transport
     console.error(`${SERVER_NAME} v${SERVER_VERSION} started`);
   } catch (error) {
     console.error('Failed to start MCP server:', error);
@@ -318,5 +304,4 @@ async function main(): Promise<void> {
   }
 }
 
-// Run the server
 main();
