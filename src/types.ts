@@ -8,6 +8,7 @@ export interface DatabaseConfig {
   user: string;
   password: string;
   database: string;
+  queryTimeoutMs: number;
 }
 
 /**

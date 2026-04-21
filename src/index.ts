@@ -271,6 +271,7 @@ async function createServer(): Promise<Server> {
             host: config.host,
             port: config.port,
             user: config.user,
+            queryTimeoutMs: config.queryTimeoutMs,
             note: `This MCP server provides READ-ONLY access to the '${config.database}' database only.`
           };
           return { content: [{ type: 'text', text: JSON.stringify(info, null, 2) }] };

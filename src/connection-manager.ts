@@ -191,10 +191,11 @@ export class ConnectionManager {
     const effectiveLimit = limit ?? LIMITS.QUERY_DEFAULT;
 
     // Create timeout promise
+    const timeoutMs = this.config?.queryTimeoutMs ?? LIMITS.TIMEOUT_MS;
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => {
-        reject(new Error(`Query exceeded ${LIMITS.TIMEOUT_MS / 1000} second timeout limit`));
-      }, LIMITS.TIMEOUT_MS);
+        reject(new Error(`Query exceeded ${timeoutMs / 1000} second timeout limit`));
+      }, timeoutMs);
     });
 
     // Execute query with timeout
@@ -300,13 +301,19 @@ export class ConnectionManager {
  * @returns Database config
  */
 export function createConfigFromEnv(): DatabaseConfig {
+  const rawTimeout = parseInt(process.env.MYSQL_QUERY_TIMEOUT_MS || '', 10);
+  const queryTimeoutMs = Number.isFinite(rawTimeout) && rawTimeout >= 1000
+    ? rawTimeout
+    : LIMITS.TIMEOUT_MS;
+
   return {
     name: process.env.MYSQL_DATABASE || 'mysql',
     host: process.env.MYSQL_HOST || 'localhost',
     port: parseInt(process.env.MYSQL_PORT || '3306', 10),
     user: process.env.MYSQL_USER || 'root',
     password: process.env.MYSQL_PASSWORD || '',
-    database: process.env.MYSQL_DATABASE || 'mysql'
+    database: process.env.MYSQL_DATABASE || 'mysql',
+    queryTimeoutMs
   };
 }
 
