@@ -9,14 +9,13 @@
  * **Validates: Requirements 7.1, 7.2, 7.3**
  */
 
-import { ConnectionManager, DatabaseType } from '../connection-manager.js';
+import { ConnectionManager } from '../connection-manager.js';
 import { TableStat } from '../types.js';
 
 /**
  * Input parameters for db_stats tool
  */
 export interface DbStatsInput {
-  database?: 'crm' | 'operation';
 }
 
 /**
@@ -30,11 +29,6 @@ export interface DbStatsOutput {
   largestByRows: TableStat[];
   largestBySize: TableStat[];
 }
-
-/**
- * Default database when not specified
- */
-const DEFAULT_DATABASE: DatabaseType = 'crm';
 
 /**
  * Maximum number of tables to return in top lists
@@ -54,7 +48,7 @@ const TOP_TABLES_LIMIT = 10;
  * - Top 10 largest tables by data size
  * 
  * @param connectionManager - Connection manager instance
- * @param input - Input parameters with optional database selection
+ * @param input - Input parameters
  * @returns Database statistics
  * 
  * **Validates: Requirements 7.1, 7.2, 7.3**
@@ -63,19 +57,17 @@ export async function dbStats(
   connectionManager: ConnectionManager,
   input: DbStatsInput
 ): Promise<DbStatsOutput> {
-  const database = input.database || DEFAULT_DATABASE;
-
   // Get overall database statistics
-  const overallStats = await getOverallStats(connectionManager, database);
+  const overallStats = await getOverallStats(connectionManager);
 
   // Get top 10 largest tables by row count
-  const largestByRows = await getLargestTablesByRows(connectionManager, database);
+  const largestByRows = await getLargestTablesByRows(connectionManager);
 
   // Get top 10 largest tables by size
-  const largestBySize = await getLargestTablesBySize(connectionManager, database);
+  const largestBySize = await getLargestTablesBySize(connectionManager);
 
   return {
-    database,
+    database: connectionManager.getDatabaseName(),
     tableCount: overallStats.tableCount,
     totalRows: overallStats.totalRows,
     totalSize: overallStats.totalSize,
@@ -90,8 +82,7 @@ export async function dbStats(
  * **Validates: Requirements 7.1**
  */
 async function getOverallStats(
-  connectionManager: ConnectionManager,
-  database: DatabaseType
+  connectionManager: ConnectionManager
 ): Promise<{ tableCount: number; totalRows: number; totalSize: string }> {
   const query = `
     SELECT 
@@ -103,7 +94,7 @@ async function getOverallStats(
       AND TABLE_TYPE = 'BASE TABLE'
   `;
 
-  const result = await connectionManager.executeQuery(database, query);
+  const result = await connectionManager.executeQuery(query);
 
   if (result.rows.length === 0) {
     return { tableCount: 0, totalRows: 0, totalSize: '0 B' };
@@ -127,8 +118,7 @@ async function getOverallStats(
  * **Validates: Requirements 7.2**
  */
 async function getLargestTablesByRows(
-  connectionManager: ConnectionManager,
-  database: DatabaseType
+  connectionManager: ConnectionManager
 ): Promise<TableStat[]> {
   const query = `
     SELECT 
@@ -142,7 +132,7 @@ async function getLargestTablesByRows(
     LIMIT ${TOP_TABLES_LIMIT}
   `;
 
-  const result = await connectionManager.executeQuery(database, query);
+  const result = await connectionManager.executeQuery(query);
 
   return result.rows.map(row => ({
     table: String(row.table_name || ''),
@@ -157,8 +147,7 @@ async function getLargestTablesByRows(
  * **Validates: Requirements 7.3**
  */
 async function getLargestTablesBySize(
-  connectionManager: ConnectionManager,
-  database: DatabaseType
+  connectionManager: ConnectionManager
 ): Promise<TableStat[]> {
   const query = `
     SELECT 
@@ -172,7 +161,7 @@ async function getLargestTablesBySize(
     LIMIT ${TOP_TABLES_LIMIT}
   `;
 
-  const result = await connectionManager.executeQuery(database, query);
+  const result = await connectionManager.executeQuery(query);
 
   return result.rows.map(row => ({
     table: String(row.table_name || ''),

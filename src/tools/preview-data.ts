@@ -9,7 +9,7 @@
  * **Validates: Requirements 4.1, 4.2, 4.3, 4.4**
  */
 
-import { ConnectionManager, DatabaseType } from '../connection-manager.js';
+import { ConnectionManager } from '../connection-manager.js';
 import { LIMITS } from '../types.js';
 
 /**
@@ -17,7 +17,6 @@ import { LIMITS } from '../types.js';
  */
 export interface PreviewDataInput {
   table: string;
-  database?: 'crm' | 'operation';
   columns?: string[];
   limit?: number;
   where?: string;
@@ -33,11 +32,6 @@ export interface PreviewDataOutput {
   totalRows: number;
   truncatedFields: string[];
 }
-
-/**
- * Default database when not specified
- */
-const DEFAULT_DATABASE: DatabaseType = 'crm';
 
 /**
  * Escapes SQL identifier to prevent injection
@@ -148,11 +142,11 @@ export async function previewData(
   connectionManager: ConnectionManager,
   input: PreviewDataInput
 ): Promise<PreviewDataOutput> {
-  const database = input.database || DEFAULT_DATABASE;
   const tableName = input.table;
   const limit = enforceRowLimit(input.limit);
   const columnList = buildColumnList(input.columns);
   const whereClause = sanitizeWhereClause(input.where);
+  const databaseName = connectionManager.getDatabaseName();
   
   // Build the query
   let query = `SELECT ${columnList} FROM \`${escapeSqlIdentifier(tableName)}\``;
@@ -164,7 +158,7 @@ export async function previewData(
   query += ` LIMIT ${limit}`;
   
   try {
-    const result = await connectionManager.executeQuery(database, query);
+    const result = await connectionManager.executeQuery(query);
     
     // Track which fields were truncated
     const truncatedFieldsSet = new Set<string>();
@@ -202,7 +196,7 @@ export async function previewData(
     
     // Check for table not found error
     if (errorMessage.includes("doesn't exist") || errorMessage.includes('Unknown table')) {
-      throw new Error(`Table '${tableName}' does not exist in database '${database}'`);
+      throw new Error(`Table '${tableName}' does not exist in database '${databaseName}'`);
     }
     
     throw error;

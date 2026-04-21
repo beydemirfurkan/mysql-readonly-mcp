@@ -9,7 +9,7 @@
  * **Validates: Requirements 5.1, 5.2, 5.3, 5.4, 5.5**
  */
 
-import { ConnectionManager, DatabaseType } from '../connection-manager.js';
+import { ConnectionManager } from '../connection-manager.js';
 import { validate } from '../query-validator.js';
 import { LIMITS } from '../types.js';
 
@@ -18,7 +18,6 @@ import { LIMITS } from '../types.js';
  */
 export interface RunQueryInput {
   query: string;
-  database?: 'crm' | 'operation';
   limit?: number;
 }
 
@@ -32,11 +31,6 @@ export interface RunQueryOutput {
   truncated: boolean;
   executionTime: number;
 }
-
-/**
- * Default database when not specified
- */
-const DEFAULT_DATABASE: DatabaseType = 'crm';
 
 /**
  * Validates and enforces row limit for custom queries
@@ -66,7 +60,7 @@ export function enforceQueryLimit(requestedLimit?: number): number {
  * Executes a custom SELECT query with validation and limits
  * 
  * @param connectionManager - Connection manager instance
- * @param input - Input parameters with query, database, and limit
+ * @param input - Input parameters with query and limit
  * @returns Query result with columns, rows, and execution metadata
  * @throws Error if query validation fails
  * 
@@ -76,7 +70,6 @@ export async function runQuery(
   connectionManager: ConnectionManager,
   input: RunQueryInput
 ): Promise<RunQueryOutput> {
-  const database = input.database || DEFAULT_DATABASE;
   const query = input.query;
   const limit = enforceQueryLimit(input.limit);
   
@@ -92,7 +85,7 @@ export async function runQuery(
   
   try {
     // Execute query with limit enforcement
-    const result = await connectionManager.executeQuery(database, query, [], limit);
+    const result = await connectionManager.executeQuery(query, [], limit);
     
     const executionTime = Date.now() - startTime;
     

@@ -28,7 +28,8 @@ fc.configureGlobal({ numRuns: 100 });
 /**
  * Arbitrary for generating valid database names
  */
-const databaseNameArb = fc.constantFrom('crm', 'operation');
+const databaseNameArb = fc.string({ minLength: 1, maxLength: 64 })
+  .filter(s => s.trim().length > 0);
 
 /**
  * Arbitrary for generating valid table names

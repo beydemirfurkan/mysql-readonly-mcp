@@ -9,7 +9,7 @@
  * **Validates: Requirements 3.1, 3.2, 3.3, 3.4**
  */
 
-import { ConnectionManager, DatabaseType } from '../connection-manager.js';
+import { ConnectionManager } from '../connection-manager.js';
 import { ColumnInfo, ForeignKeyInfo, IndexInfo } from '../types.js';
 
 /**
@@ -17,7 +17,6 @@ import { ColumnInfo, ForeignKeyInfo, IndexInfo } from '../types.js';
  */
 export interface DescribeTableInput {
   table: string;
-  database?: 'crm' | 'operation';
 }
 
 /**
@@ -32,11 +31,6 @@ export interface DescribeTableOutput {
 }
 
 /**
- * Default database when not specified
- */
-const DEFAULT_DATABASE: DatabaseType = 'crm';
-
-/**
  * Describes a table's schema including columns, keys, and indexes
  * 
  * Uses multiple MySQL queries:
@@ -45,7 +39,7 @@ const DEFAULT_DATABASE: DatabaseType = 'crm';
  * - INFORMATION_SCHEMA for foreign key information
  * 
  * @param connectionManager - Connection manager instance
- * @param input - Input parameters with table name and optional database
+ * @param input - Input parameters with table name
  * @returns Table schema with columns, primary key, foreign keys, and indexes
  * @throws Error if table does not exist
  * 
@@ -55,22 +49,22 @@ export async function describeTable(
   connectionManager: ConnectionManager,
   input: DescribeTableInput
 ): Promise<DescribeTableOutput> {
-  const database = input.database || DEFAULT_DATABASE;
   const tableName = input.table;
+  const databaseName = connectionManager.getDatabaseName();
 
   // Get column information using DESCRIBE
-  const columns = await getColumnInfo(connectionManager, database, tableName);
+  const columns = await getColumnInfo(connectionManager, tableName);
   
   // If no columns returned, table doesn't exist
   if (columns.length === 0) {
-    throw new Error(`Table '${tableName}' does not exist in database '${database}'`);
+    throw new Error(`Table '${tableName}' does not exist in database '${databaseName}'`);
   }
 
   // Get index information
-  const { indexes, primaryKey } = await getIndexInfo(connectionManager, database, tableName);
+  const { indexes, primaryKey } = await getIndexInfo(connectionManager, tableName);
 
   // Get foreign key information
-  const foreignKeys = await getForeignKeyInfo(connectionManager, database, tableName);
+  const foreignKeys = await getForeignKeyInfo(connectionManager, tableName);
 
   return {
     table: tableName,
@@ -89,12 +83,11 @@ export async function describeTable(
  */
 async function getColumnInfo(
   connectionManager: ConnectionManager,
-  database: DatabaseType,
   tableName: string
 ): Promise<ColumnInfo[]> {
   try {
     const query = `DESCRIBE \`${escapeSqlIdentifier(tableName)}\``;
-    const result = await connectionManager.executeQuery(database, query);
+    const result = await connectionManager.executeQuery(query);
 
     return result.rows.map(row => ({
       name: String(row.Field || ''),
@@ -121,11 +114,10 @@ async function getColumnInfo(
  */
 async function getIndexInfo(
   connectionManager: ConnectionManager,
-  database: DatabaseType,
   tableName: string
 ): Promise<{ indexes: IndexInfo[]; primaryKey: string[] }> {
   const query = `SHOW INDEX FROM \`${escapeSqlIdentifier(tableName)}\``;
-  const result = await connectionManager.executeQuery(database, query);
+  const result = await connectionManager.executeQuery(query);
 
   // Group index columns by index name
   const indexMap = new Map<string, {
@@ -179,7 +171,6 @@ async function getIndexInfo(
  */
 async function getForeignKeyInfo(
   connectionManager: ConnectionManager,
-  database: DatabaseType,
   tableName: string
 ): Promise<ForeignKeyInfo[]> {
   // Query INFORMATION_SCHEMA for foreign key constraints
@@ -195,7 +186,7 @@ async function getForeignKeyInfo(
       AND REFERENCED_TABLE_NAME IS NOT NULL
   `;
 
-  const result = await connectionManager.executeQuery(database, query, [tableName]);
+  const result = await connectionManager.executeQuery(query, [tableName]);
 
   return result.rows.map(row => ({
     name: String(row.constraint_name || ''),

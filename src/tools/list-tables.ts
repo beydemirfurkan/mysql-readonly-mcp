@@ -8,14 +8,13 @@
  * **Validates: Requirements 2.1, 2.2, 2.3**
  */
 
-import { ConnectionManager, DatabaseType } from '../connection-manager.js';
+import { ConnectionManager } from '../connection-manager.js';
 import { TableInfo } from '../types.js';
 
 /**
  * Input parameters for list_tables tool
  */
 export interface ListTablesInput {
-  database?: 'crm' | 'operation';
 }
 
 /**
@@ -27,13 +26,6 @@ export interface ListTablesOutput {
 }
 
 /**
- * Default database when not specified
- * 
- * **Validates: Requirements 2.3**
- */
-const DEFAULT_DATABASE: DatabaseType = 'crm';
-
-/**
  * Lists all tables in the specified database
  * 
  * Uses SHOW TABLE STATUS to get comprehensive table information including:
@@ -43,7 +35,7 @@ const DEFAULT_DATABASE: DatabaseType = 'crm';
  * - Storage engine
  * 
  * @param connectionManager - Connection manager instance
- * @param input - Input parameters with optional database selection
+ * @param input - Input parameters
  * @returns List of tables with metadata
  * 
  * **Validates: Requirements 2.1, 2.2**
@@ -52,12 +44,10 @@ export async function listTables(
   connectionManager: ConnectionManager,
   input: ListTablesInput
 ): Promise<ListTablesOutput> {
-  const database = input.database || DEFAULT_DATABASE;
-  
   // Use SHOW TABLE STATUS to get table information
   const query = 'SHOW TABLE STATUS';
-  
-  const result = await connectionManager.executeQuery(database, query);
+
+  const result = await connectionManager.executeQuery(query);
   
   const tables: TableInfo[] = result.rows.map(row => ({
     name: String(row.Name || ''),
@@ -68,7 +58,7 @@ export async function listTables(
   
   return {
     tables,
-    database
+    database: connectionManager.getDatabaseName()
   };
 }
 

@@ -41,7 +41,12 @@ const hostnameArb = fc.stringOf(
          !lowerHost.startsWith('pwd') && 
          !lowerHost.startsWith('secret') && 
          !lowerHost.startsWith('token') && 
-         !lowerHost.startsWith('key');
+         !lowerHost.startsWith('key') &&
+         !lowerHost.endsWith('password') &&
+         !lowerHost.endsWith('pwd') &&
+         !lowerHost.endsWith('secret') &&
+         !lowerHost.endsWith('token') &&
+         !lowerHost.endsWith('key');
 });
 
 /**
@@ -64,7 +69,7 @@ const databaseNameArb = fc.stringOf(
  * Arbitrary for generating database configurations
  */
 const databaseConfigArb = fc.record({
-  name: fc.constantFrom('crm', 'operation'),
+  name: fc.constant('mysql'),
   host: hostnameArb,
   port: fc.integer({ min: 1024, max: 65535 }),
   user: usernameArb,

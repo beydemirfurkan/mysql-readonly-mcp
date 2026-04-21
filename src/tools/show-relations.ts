@@ -9,7 +9,7 @@
  * **Validates: Requirements 6.1, 6.2, 6.3**
  */
 
-import { ConnectionManager, DatabaseType } from '../connection-manager.js';
+import { ConnectionManager } from '../connection-manager.js';
 import { RelationInfo } from '../types.js';
 
 /**
@@ -17,7 +17,6 @@ import { RelationInfo } from '../types.js';
  */
 export interface ShowRelationsInput {
   table: string;
-  database?: 'crm' | 'operation';
 }
 
 /**
@@ -31,11 +30,6 @@ export interface ShowRelationsOutput {
 }
 
 /**
- * Default database when not specified
- */
-const DEFAULT_DATABASE: DatabaseType = 'crm';
-
-/**
  * Shows all foreign key relationships for a table
  * 
  * Uses INFORMATION_SCHEMA.KEY_COLUMN_USAGE to find:
@@ -43,7 +37,7 @@ const DEFAULT_DATABASE: DatabaseType = 'crm';
  * - Tables this table references (references)
  * 
  * @param connectionManager - Connection manager instance
- * @param input - Input parameters with table name and optional database
+ * @param input - Input parameters with table name
  * @returns Relationship information with referencedBy and references arrays
  * 
  * **Validates: Requirements 6.1, 6.2, 6.3**
@@ -52,14 +46,13 @@ export async function showRelations(
   connectionManager: ConnectionManager,
   input: ShowRelationsInput
 ): Promise<ShowRelationsOutput> {
-  const database = input.database || DEFAULT_DATABASE;
   const tableName = input.table;
 
   // Get tables that this table references (outgoing foreign keys)
-  const references = await getOutgoingRelations(connectionManager, database, tableName);
+  const references = await getOutgoingRelations(connectionManager, tableName);
 
   // Get tables that reference this table (incoming foreign keys)
-  const referencedBy = await getIncomingRelations(connectionManager, database, tableName);
+  const referencedBy = await getIncomingRelations(connectionManager, tableName);
 
   // Build result with optional message for empty relations
   const result: ShowRelationsOutput = {
@@ -82,7 +75,6 @@ export async function showRelations(
  */
 async function getOutgoingRelations(
   connectionManager: ConnectionManager,
-  database: DatabaseType,
   tableName: string
 ): Promise<RelationInfo[]> {
   const query = `
@@ -97,7 +89,7 @@ async function getOutgoingRelations(
       AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
   `;
 
-  const result = await connectionManager.executeQuery(database, query, [tableName]);
+  const result = await connectionManager.executeQuery(query, [tableName]);
 
   const relations: RelationInfo[] = [];
 
@@ -107,12 +99,11 @@ async function getOutgoingRelations(
     const constraintName = String(row.constraint_name || '');
 
     // Determine relationship type
-    const relationType = await determineRelationType(
-      connectionManager,
-      database,
-      tableName,
-      columnName
-    );
+      const relationType = await determineRelationType(
+        connectionManager,
+        tableName,
+        columnName
+      );
 
     relations.push({
       table: referencedTable,
@@ -132,7 +123,6 @@ async function getOutgoingRelations(
  */
 async function getIncomingRelations(
   connectionManager: ConnectionManager,
-  database: DatabaseType,
   tableName: string
 ): Promise<RelationInfo[]> {
   const query = `
@@ -146,7 +136,7 @@ async function getIncomingRelations(
       AND kcu.REFERENCED_TABLE_NAME = ?
   `;
 
-  const result = await connectionManager.executeQuery(database, query, [tableName]);
+  const result = await connectionManager.executeQuery(query, [tableName]);
 
   const relations: RelationInfo[] = [];
 
@@ -156,12 +146,11 @@ async function getIncomingRelations(
     const constraintName = String(row.constraint_name || '');
 
     // Determine relationship type from the referencing table's perspective
-    const relationType = await determineRelationType(
-      connectionManager,
-      database,
-      sourceTable,
-      sourceColumn
-    );
+      const relationType = await determineRelationType(
+        connectionManager,
+        sourceTable,
+        sourceColumn
+      );
 
     relations.push({
       table: sourceTable,
@@ -184,7 +173,6 @@ async function getIncomingRelations(
  */
 async function determineRelationType(
   connectionManager: ConnectionManager,
-  database: DatabaseType,
   tableName: string,
   columnName: string
 ): Promise<'one-to-one' | 'one-to-many'> {
@@ -199,7 +187,7 @@ async function determineRelationType(
   `;
 
   try {
-    const result = await connectionManager.executeQuery(database, query, [tableName, columnName]);
+    const result = await connectionManager.executeQuery(query, [tableName, columnName]);
     
     if (result.rows.length > 0) {
       const uniqueCount = Number(result.rows[0].unique_count || 0);

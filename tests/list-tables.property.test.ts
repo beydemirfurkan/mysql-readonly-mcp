@@ -43,6 +43,12 @@ const rowCountArb = fc.nat({ max: 1000000 });
 const engineArb = fc.constantFrom('InnoDB', 'MyISAM', 'MEMORY', 'CSV', 'N/A');
 
 /**
+ * Arbitrary for generating valid database names
+ */
+const databaseNameArb = fc.string({ minLength: 1, maxLength: 64 })
+  .filter(s => s.trim().length > 0);
+
+/**
  * Arbitrary for generating valid TableInfo objects
  */
 const validTableInfoArb: fc.Arbitrary<TableInfo> = fc.record({
@@ -57,7 +63,7 @@ const validTableInfoArb: fc.Arbitrary<TableInfo> = fc.record({
  */
 const validListTablesOutputArb: fc.Arbitrary<ListTablesOutput> = fc.record({
   tables: fc.array(validTableInfoArb, { minLength: 0, maxLength: 50 }),
-  database: fc.constantFrom('crm', 'operation')
+  database: databaseNameArb
 });
 
 /**
@@ -174,7 +180,7 @@ describe('List Tables Property Tests', () => {
     it('should handle empty table lists', () => {
       const emptyOutput: ListTablesOutput = {
         tables: [],
-        database: 'crm'
+        database: 'mysql'
       };
       
       expect(isValidListTablesOutput(emptyOutput)).toBe(true);
@@ -185,7 +191,7 @@ describe('List Tables Property Tests', () => {
       fc.assert(
         fc.property(
           fc.array(validTableInfoArb, { minLength: 0, maxLength: 100 }),
-          fc.constantFrom('crm', 'operation'),
+          databaseNameArb,
           (tables, database) => {
             const output: ListTablesOutput = { tables, database };
             
@@ -214,7 +220,7 @@ describe('List Tables Property Tests', () => {
       fc.assert(
         fc.property(
           fc.constantFrom(null, undefined, 'tables', 123, {}),
-          fc.constantFrom('crm', 'operation'),
+          databaseNameArb,
           (invalidTables, database) => {
             const output = { tables: invalidTables, database };
             expect(isValidListTablesOutput(output)).toBe(false);

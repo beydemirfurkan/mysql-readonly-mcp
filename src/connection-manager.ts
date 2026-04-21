@@ -1,7 +1,7 @@
 /**
  * Connection Manager Module
  * 
- * Manages MySQL database connections for CRM and Operation databases.
+ * Manages MySQL database connections for a single configured database.
  * Provides connection pooling and query execution with timeout handling.
  * 
  * @module connection-manager
@@ -12,11 +12,6 @@
 import mysql, { Pool, PoolOptions, RowDataPacket, FieldPacket } from 'mysql2/promise';
 import { DatabaseConfig, QueryResult, FieldInfo, LIMITS } from './types.js';
 import { validate } from './query-validator.js';
-
-/**
- * Database type identifier
- */
-export type DatabaseType = 'crm' | 'operation';
 
 /**
  * Sensitive patterns to sanitize from error messages and logs
@@ -67,28 +62,19 @@ export function createConnectionErrorMessage(config: DatabaseConfig, error: Erro
  * Manages database connection pools and query execution
  */
 export class ConnectionManager {
-  private pools: Map<DatabaseType, Pool> = new Map();
-  private configs: Map<DatabaseType, DatabaseConfig> = new Map();
+  private pool: Pool | null = null;
+  private config: DatabaseConfig | null = null;
 
   /**
-   * Initializes connection pools for the given database configurations
+   * Initializes the connection pool for the configured database
    * 
-   * @param crmConfig - CRM database configuration
-   * @param operationConfig - Operation database configuration
+   * @param config - Database configuration
    * 
    * **Validates: Requirements 1.1, 1.3**
    */
-  async initialize(crmConfig: DatabaseConfig, operationConfig: DatabaseConfig): Promise<void> {
-    this.configs.set('crm', crmConfig);
-    this.configs.set('operation', operationConfig);
-
-    // Create CRM pool
-    const crmPool = this.createPool(crmConfig);
-    this.pools.set('crm', crmPool);
-
-    // Create Operation pool
-    const operationPool = this.createPool(operationConfig);
-    this.pools.set('operation', operationPool);
+  async initialize(config: DatabaseConfig): Promise<void> {
+    this.config = config;
+    this.pool = this.createPool(config);
   }
 
   /**
@@ -112,33 +98,38 @@ export class ConnectionManager {
   }
 
   /**
-   * Gets the connection pool for a specific database
+   * Gets the connection pool
    * 
-   * @param database - Database type ('crm' or 'operation')
    * @returns MySQL connection pool
    * @throws Error if pool not initialized
    */
-  getPool(database: DatabaseType): Pool {
-    const pool = this.pools.get(database);
-    
+  getPool(): Pool {
+    const pool = this.pool;
+
     if (!pool) {
-      throw new Error(`Connection pool not initialized for database: ${database}`);
+      throw new Error('Connection pool not initialized');
     }
-    
+
     return pool;
   }
 
   /**
-   * Tests connection to a specific database
+   * Gets the configured database name
+   */
+  getDatabaseName(): string {
+    return this.config?.database || 'mysql';
+  }
+
+  /**
+   * Tests connection to the configured database
    * 
-   * @param database - Database type to test
    * @throws Error with sanitized message if connection fails
    * 
    * **Validates: Requirements 1.2**
    */
-  async testConnection(database: DatabaseType): Promise<void> {
-    const pool = this.getPool(database);
-    const config = this.configs.get(database);
+  async testConnection(): Promise<void> {
+    const pool = this.getPool();
+    const config = this.config;
 
     try {
       const connection = await pool.getConnection();
@@ -147,7 +138,7 @@ export class ConnectionManager {
       if (config) {
         throw new Error(createConnectionErrorMessage(config, error as Error));
       }
-      throw new Error(`Database connection failed: ${database}`);
+      throw new Error('Database connection failed');
     }
   }
 
@@ -155,7 +146,6 @@ export class ConnectionManager {
   /**
    * Executes a read-only query with timeout handling
    * 
-   * @param database - Database to query ('crm' or 'operation')
    * @param query - SQL query to execute
    * @param params - Query parameters (optional)
    * @param limit - Maximum rows to return (optional)
@@ -164,7 +154,6 @@ export class ConnectionManager {
    * **Validates: Requirements 1.3, 1.4, 5.3, 5.4**
    */
   async executeQuery(
-    database: DatabaseType,
     query: string,
     params: unknown[] = [],
     limit?: number
@@ -176,7 +165,7 @@ export class ConnectionManager {
       throw new Error(validation.error || 'Invalid query');
     }
 
-    const pool = this.getPool(database);
+    const pool = this.getPool();
     const effectiveLimit = limit ?? LIMITS.QUERY_DEFAULT;
 
     // Create timeout promise
@@ -295,54 +284,40 @@ export class ConnectionManager {
    * Closes all connection pools
    */
   async close(): Promise<void> {
-    const closePromises: Promise<void>[] = [];
-    
-    for (const [, pool] of this.pools) {
-      closePromises.push(pool.end());
+    if (this.pool) {
+      await this.pool.end();
     }
-    
-    await Promise.all(closePromises);
-    this.pools.clear();
-    this.configs.clear();
+
+    this.pool = null;
+    this.config = null;
   }
 }
 
 /**
  * Creates database configuration from environment variables
  * 
- * @returns Object with CRM and Operation database configs
+ * @returns Database config
  */
-export function createConfigFromEnv(): { crm: DatabaseConfig; operation: DatabaseConfig } {
-  const crm: DatabaseConfig = {
-    name: 'crm',
+export function createConfigFromEnv(): DatabaseConfig {
+  return {
+    name: process.env.MYSQL_DATABASE || 'mysql',
     host: process.env.MYSQL_HOST || 'localhost',
     port: parseInt(process.env.MYSQL_PORT || '3306', 10),
     user: process.env.MYSQL_USER || 'root',
     password: process.env.MYSQL_PASSWORD || '',
-    database: process.env.MYSQL_DATABASE || 'marcaspiocrm'
+    database: process.env.MYSQL_DATABASE || 'mysql'
   };
-
-  const operation: DatabaseConfig = {
-    name: 'operation',
-    host: process.env.OPERATION_HOST || process.env.MYSQL_HOST || 'localhost',
-    port: parseInt(process.env.OPERATION_PORT || '3306', 10),
-    user: process.env.OPERATION_USER || process.env.MYSQL_USER || 'root',
-    password: process.env.OPERATION_PASS || process.env.MYSQL_PASSWORD || '',
-    database: process.env.OPERATION_DATABASE || 'positive_comments'
-  };
-
-  return { crm, operation };
 }
 
 /**
  * Connection Manager interface for dependency injection
  */
 export interface IConnectionManager {
-  initialize(crmConfig: DatabaseConfig, operationConfig: DatabaseConfig): Promise<void>;
-  getPool(database: DatabaseType): Pool;
-  testConnection(database: DatabaseType): Promise<void>;
+  initialize(config: DatabaseConfig): Promise<void>;
+  getPool(): Pool;
+  getDatabaseName(): string;
+  testConnection(): Promise<void>;
   executeQuery(
-    database: DatabaseType,
     query: string,
     params?: unknown[],
     limit?: number

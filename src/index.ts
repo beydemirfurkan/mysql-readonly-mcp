@@ -2,8 +2,7 @@
 /**
  * MySQL Read-Only MCP Server Entry Point
  * 
- * MCP server that provides read-only access to MySQL databases.
- * Supports CRM and Operation databases with tools for:
+ * MCP server that provides read-only access to a MySQL database with tools for:
  * - Listing tables
  * - Describing table schemas
  * - Previewing data
@@ -26,7 +25,7 @@ import {
   McpError
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { ConnectionManager, createConfigFromEnv, DatabaseType } from './connection-manager.js';
+import { ConnectionManager, createConfigFromEnv } from './connection-manager.js';
 import { listTables, ListTablesInput } from './tools/list-tables.js';
 import { describeTable, DescribeTableInput } from './tools/describe-table.js';
 import { previewData, PreviewDataInput } from './tools/preview-data.js';
@@ -49,13 +48,7 @@ const TOOL_DEFINITIONS = [
     description: 'Lists all tables in a database with their type (BASE TABLE or VIEW), row count estimate, and storage engine.',
     inputSchema: {
       type: 'object' as const,
-      properties: {
-        database: {
-          type: 'string',
-          enum: ['crm', 'operation'],
-          description: 'Database to list tables from. Defaults to "crm".'
-        }
-      }
+      properties: {}
     }
   },
   {
@@ -67,11 +60,6 @@ const TOOL_DEFINITIONS = [
         table: {
           type: 'string',
           description: 'Name of the table to describe.'
-        },
-        database: {
-          type: 'string',
-          enum: ['crm', 'operation'],
-          description: 'Database containing the table. Defaults to "crm".'
         }
       },
       required: ['table']
@@ -86,11 +74,6 @@ const TOOL_DEFINITIONS = [
         table: {
           type: 'string',
           description: 'Name of the table to preview.'
-        },
-        database: {
-          type: 'string',
-          enum: ['crm', 'operation'],
-          description: 'Database containing the table. Defaults to "crm".'
         },
         columns: {
           type: 'array',
@@ -119,11 +102,6 @@ const TOOL_DEFINITIONS = [
           type: 'string',
           description: 'SQL query to execute. Must be a read-only query (SELECT, SHOW, DESCRIBE, EXPLAIN).'
         },
-        database: {
-          type: 'string',
-          enum: ['crm', 'operation'],
-          description: 'Database to run the query against. Defaults to "crm".'
-        },
         limit: {
           type: 'number',
           description: 'Maximum rows to return (default: 1000, max: 5000).'
@@ -141,11 +119,6 @@ const TOOL_DEFINITIONS = [
         table: {
           type: 'string',
           description: 'Name of the table to show relationships for.'
-        },
-        database: {
-          type: 'string',
-          enum: ['crm', 'operation'],
-          description: 'Database containing the table. Defaults to "crm".'
         }
       },
       required: ['table']
@@ -156,13 +129,7 @@ const TOOL_DEFINITIONS = [
     description: 'Returns database statistics including total table count, total row count estimate, database size, and top 10 largest tables by rows and by size.',
     inputSchema: {
       type: 'object' as const,
-      properties: {
-        database: {
-          type: 'string',
-          enum: ['crm', 'operation'],
-          description: 'Database to get statistics for. Defaults to "crm".'
-        }
-      }
+      properties: {}
     }
   }
 ];
@@ -185,9 +152,9 @@ async function createServer(): Promise<Server> {
 
   // Initialize connection manager
   const connectionManager = new ConnectionManager();
-  const configs = createConfigFromEnv();
-  
-  await connectionManager.initialize(configs.crm, configs.operation);
+  const config = createConfigFromEnv();
+
+  await connectionManager.initialize(config);
 
   // Register list tools handler
   server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -203,9 +170,7 @@ async function createServer(): Promise<Server> {
     try {
       switch (name) {
         case 'list_tables': {
-          const input: ListTablesInput = {
-            database: (args?.database as DatabaseType) || undefined
-          };
+          const input: ListTablesInput = {};
           const result = await listTables(connectionManager, input);
           return {
             content: [
@@ -222,8 +187,7 @@ async function createServer(): Promise<Server> {
             throw new McpError(ErrorCode.InvalidParams, 'Missing required parameter: table');
           }
           const input: DescribeTableInput = {
-            table: args.table as string,
-            database: (args?.database as DatabaseType) || undefined
+            table: args.table as string
           };
           const result = await describeTable(connectionManager, input);
           return {
@@ -242,7 +206,6 @@ async function createServer(): Promise<Server> {
           }
           const input: PreviewDataInput = {
             table: args.table as string,
-            database: (args?.database as DatabaseType) || undefined,
             columns: args?.columns as string[] | undefined,
             limit: args?.limit as number | undefined,
             where: args?.where as string | undefined
@@ -264,7 +227,6 @@ async function createServer(): Promise<Server> {
           }
           const input: RunQueryInput = {
             query: args.query as string,
-            database: (args?.database as DatabaseType) || undefined,
             limit: args?.limit as number | undefined
           };
           const result = await runQuery(connectionManager, input);
@@ -283,8 +245,7 @@ async function createServer(): Promise<Server> {
             throw new McpError(ErrorCode.InvalidParams, 'Missing required parameter: table');
           }
           const input: ShowRelationsInput = {
-            table: args.table as string,
-            database: (args?.database as DatabaseType) || undefined
+            table: args.table as string
           };
           const result = await showRelations(connectionManager, input);
           return {
@@ -298,9 +259,7 @@ async function createServer(): Promise<Server> {
         }
 
         case 'db_stats': {
-          const input: DbStatsInput = {
-            database: (args?.database as DatabaseType) || undefined
-          };
+          const input: DbStatsInput = {};
           const result = await dbStats(connectionManager, input);
           return {
             content: [
