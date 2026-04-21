@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "mysql-production": {
-      "command": "node",
-      "args": ["/path/to/mysql-readonly-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "mysql-readonly-mcp"],
       "env": {
         "MYSQL_HOST": "production-host.example.com",
         "MYSQL_PORT": "3306",
@@ -21,8 +21,8 @@
       ]
     },
     "mysql-staging": {
-      "command": "node",
-      "args": ["/path/to/mysql-readonly-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "mysql-readonly-mcp"],
       "env": {
         "MYSQL_HOST": "staging-host.example.com",
         "MYSQL_PORT": "3306",
@@ -41,8 +41,8 @@
       ]
     },
     "mysql-analytics": {
-      "command": "node",
-      "args": ["/path/to/mysql-readonly-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "mysql-readonly-mcp"],
       "env": {
         "MYSQL_HOST": "analytics-host.example.com",
         "MYSQL_PORT": "3306",

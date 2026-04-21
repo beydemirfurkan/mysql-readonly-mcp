@@ -18,6 +18,8 @@ MySQL Read-Only MCP Server is a Model Context Protocol (MCP) server that provide
 npx -y mysql-readonly-mcp
 ```
 
+Prefer `npx` or a globally installed binary in MCP client configuration. Do not point MCP clients to a cloned repository checkout such as `.../mysql-readonly-mcp/dist/index.js`, because some clients and agents may treat that checkout as part of the active workspace.
+
 ### Global installation
 
 ```bash
@@ -85,6 +87,8 @@ Configuration file locations:
   }
 }
 ```
+
+This is the recommended setup for editor and assistant clients because it keeps the MCP server isolated from the repository source tree.
 
 ### Multiple database connections
 
@@ -192,41 +196,6 @@ The server is intended for inspection and analysis, not for write operations.
 - Custom queries are capped at 5000 rows
 - Query execution timeout is 30 seconds
 - Sensitive credentials are sanitized in error messages
-
-## Development
-
-### Build
-
-```bash
-npm install
-npm run build
-```
-
-### Test
-
-```bash
-npm test
-```
-
-### Run locally
-
-```bash
-MYSQL_HOST=localhost \
-MYSQL_USER=root \
-MYSQL_PASSWORD=password \
-MYSQL_DATABASE=mydb \
-npm start
-```
-
-On Windows PowerShell:
-
-```powershell
-$env:MYSQL_HOST = "localhost"
-$env:MYSQL_USER = "root"
-$env:MYSQL_PASSWORD = "password"
-$env:MYSQL_DATABASE = "mydb"
-npm start
-```
 
 ## Troubleshooting
 
