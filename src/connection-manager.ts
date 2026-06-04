@@ -113,7 +113,8 @@ export class ConnectionManager {
       connectionLimit: 5,
       queueLimit: 0,
       enableKeepAlive: true,
-      keepAliveInitialDelay: 10000
+      keepAliveInitialDelay: 10000,
+      multipleStatements: false
     };
 
     return mysql.createPool(poolOptions);
