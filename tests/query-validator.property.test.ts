@@ -5,7 +5,7 @@
  * **Validates: Requirements 1.4, 5.1, 5.2, 8.1, 8.2**
  * 
  * Tests that the query validator correctly accepts only read-only queries
- * and rejects any query containing data modification keywords.
+ * and rejects write statements or risky clauses when they appear as real SQL tokens.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -135,8 +135,7 @@ describe('Query Validator Property Tests', () => {
    * 
    * *For any* query string submitted to the MCP_Server, the query validator 
    * SHALL accept only queries starting with SELECT, SHOW, DESCRIBE, or EXPLAIN,
-   * and SHALL reject any query containing INSERT, UPDATE, DELETE, DROP, ALTER, 
-   * TRUNCATE, CREATE, REPLACE, GRANT, REVOKE, LOCK, or UNLOCK keywords.
+     * and SHALL reject top-level write statements plus risky read-looking clauses.
    */
   describe('Property 1: Read-Only Query Validation', () => {
     it('should accept all valid read-only queries (SELECT, SHOW, DESCRIBE, EXPLAIN)', () => {
@@ -171,6 +170,63 @@ describe('Query Validator Property Tests', () => {
           expect(isReadOnly(query)).toBe(false);
         })
       );
+    });
+
+    it('should accept token-aware read-only queries with CTEs and function names', () => {
+      const validQueries = [
+        `WITH card_usage AS (
+          SELECT id FROM transactions
+        )
+        SELECT * FROM card_usage;`,
+        `WITH RECURSIVE seq(n) AS (
+          SELECT 1
+          UNION ALL
+          SELECT n + 1 FROM seq WHERE n < 10
+        )
+        SELECT * FROM seq;`,
+        `SELECT REPLACE(TRIM(card_no), ' ', '') AS card_key
+        FROM transactions;`,
+        `SELECT 'REPLACE INTO x VALUES(1)' AS sample_text;`,
+        'SELECT `update` FROM `replace`;'
+      ];
+
+      for (const query of validQueries) {
+        const result = validate(query);
+        expect(result.valid).toBe(true);
+        expect(isReadOnly(query)).toBe(true);
+      }
+    });
+
+    it('should reject write statements and risky read-looking clauses using real SQL tokens', () => {
+      const invalidQueries = [
+        'REPLACE INTO users(id) VALUES (1);',
+        "WITH cte AS (SELECT 1) UPDATE users SET name = 'x';",
+        'WITH cte AS (SELECT 1) DELETE FROM users;',
+        "WITH cte AS (SELECT 1) INSERT INTO users VALUES (1);",
+        "WITH cte AS (SELECT 1) REPLACE INTO users VALUES (1);",
+        "SELECT 1; UPDATE users SET name = 'x';",
+        'SELECT * FROM users FOR UPDATE;',
+        "SELECT * FROM users INTO OUTFILE '/tmp/export.txt';",
+        "SELECT * FROM users INTO DUMPFILE '/tmp/export.bin';",
+        'SELECT * FROM users LOCK IN SHARE MODE;',
+        'TRUNCATE TABLE users;',
+        'INSERT INTO users VALUES (1);',
+        'UPDATE users SET x = 1;',
+        'DELETE FROM users;',
+        'DROP TABLE users;',
+        'ALTER TABLE users ADD COLUMN x INT;',
+        'CREATE TABLE users (id INT);',
+        'CALL mutate_users();',
+        'SET sql_safe_updates = 0;',
+        'USE other_database;',
+        "LOAD DATA INFILE '/tmp/users.csv' INTO TABLE users;"
+      ];
+
+      for (const query of invalidQueries) {
+        const result = validate(query);
+        expect(result.valid).toBe(false);
+        expect(isReadOnly(query)).toBe(false);
+      }
     });
 
     it('should handle queries with various whitespace and comments', () => {
